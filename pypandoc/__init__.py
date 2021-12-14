@@ -13,7 +13,7 @@ from .pandoc_download import DEFAULT_TARGET_FOLDER, download_pandoc
 from .py3compat import cast_bytes, cast_unicode, string_types, url2path, urlparse
 
 __author__ = u'Juho Vepsäläinen'
-__version__ = '1.6.4'
+__version__ = '1.7.0'
 __license__ = 'MIT'
 __all__ = ['convert', 'convert_file', 'convert_text',
            'get_pandoc_formats', 'get_pandoc_version', 'get_pandoc_path',
@@ -50,7 +50,7 @@ def convert(source, to, format=None, extra_args=(), encoding='utf-8',
     :raises OSError: if pandoc is not found; make sure it has been installed and is available at
             path.
     """
-    msg = ("Due to possible ambiguity, 'convert()' is deprecated. "
+    msg = ("Due to possible ambiguity, 'convert()' is deprecated and will be removed in pypandoc 1.8. "
            "Use 'convert_file()'  or 'convert_text()'.")
     warnings.warn(msg, DeprecationWarning, stacklevel=2)
 
@@ -69,7 +69,7 @@ def convert(source, to, format=None, extra_args=(), encoding='utf-8',
 
 
 def convert_text(source, to, format, extra_args=(), encoding='utf-8',
-                 outputfile=None, filters=None, verify_format=True):
+                 outputfile=None, filters=None, verify_format=True, sandbox=True):
     """Converts given `source` from `format` to `to`.
 
     :param str source: Unicode string or bytes (see encoding)
@@ -89,6 +89,12 @@ def convert_text(source, to, format, extra_args=(), encoding='utf-8',
 
     :param list filters: pandoc filters e.g. filters=['pandoc-citeproc']
 
+    :param bool verify_format: Verify from and to format before converting. Should only be set False when confident of the formats and performance is an issue.
+            (Default value = True)
+
+    :param bool sandbox: Run pandoc in pandocs own sandbox mode, limiting IO operations in readers and writers to reading the files specified on the command line. Anyone using pandoc on untrusted user input should use this option. Note: This only does something, on pandoc >= 2.15
+            (Default value = True)
+
     :returns: converted string (unicode) or an empty string if an outputfile was given
     :rtype: unicode
 
@@ -99,11 +105,11 @@ def convert_text(source, to, format, extra_args=(), encoding='utf-8',
     source = _as_unicode(source, encoding)
     return _convert_input(source, format, 'string', to, extra_args=extra_args,
                           outputfile=outputfile, filters=filters,
-                          verify_format=verify_format)
+                          verify_format=verify_format, sandbox=sandbox)
 
 
 def convert_file(source_file, to, format=None, extra_args=(), encoding='utf-8',
-                 outputfile=None, filters=None, verify_format=True):
+                 outputfile=None, filters=None, verify_format=True, sandbox=True):
     """Converts given `source` from `format` to `to`.
 
     :param str source_file: file path (see encoding)
@@ -125,6 +131,12 @@ def convert_file(source_file, to, format=None, extra_args=(), encoding='utf-8',
 
     :param list filters: pandoc filters e.g. filters=['pandoc-citeproc']
 
+    :param bool verify_format: Verify from and to format before converting. Should only be set False when confident of the formats and performance is an issue.
+            (Default value = True)
+
+    :param bool sandbox: Run pandoc in pandocs own sandbox mode, limiting IO operations in readers and writers to reading the files specified on the command line. Anyone using pandoc on untrusted user input should use this option. Note: This only does something, on pandoc >= 2.15
+            (Default value = True)
+
     :returns: converted string (unicode) or an empty string if an outputfile was given
     :rtype: unicode
 
@@ -137,7 +149,7 @@ def convert_file(source_file, to, format=None, extra_args=(), encoding='utf-8',
     format = _identify_format_from_path(source_file, format)
     return _convert_input(source_file, format, 'path', to, extra_args=extra_args,
                           outputfile=outputfile, filters=filters,
-                          verify_format=verify_format)
+                          verify_format=verify_format, sandbox=sandbox)
 
 
 def _identify_path(source):
@@ -256,7 +268,7 @@ def _validate_formats(format, to, outputfile):
 
 
 def _convert_input(source, format, input_type, to, extra_args=(), outputfile=None,
-                   filters=None, verify_format=True):
+                   filters=None, verify_format=True, sandbox=True):
     _ensure_pandoc_path()
 
     if verify_format:
@@ -275,6 +287,10 @@ def _convert_input(source, format, input_type, to, extra_args=(), outputfile=Non
 
     if outputfile:
         args.append("--output=" + outputfile)
+
+    if sandbox:
+        if ensure_pandoc_minimal_version(2,15): # sandbox was introduced in pandoc 2.15, so only add if we are using 2.15 or above.
+            args.append("--sandbox")
 
     args.extend(extra_args)
 
@@ -475,7 +491,38 @@ def get_pandoc_path():
     _ensure_pandoc_path()
     return __pandoc_path
 
+def ensure_pandoc_minimal_version(major, minor=0):
+    """Check if the used pandoc fulfill a minimal version requirement.
 
+    :param bool major: pandoc major version, such as 1 or 2.
+
+    :param bool minor: pandoc minor version, such as 10 or 11.
+
+    :returns: True if the installed pandoc is above the minimal version, False otherwise.
+    :rtype: bool
+    """
+    version = [int(x) for x in get_pandoc_version().split(".")]
+    if version[0] > int(major): # if we have pandoc2 but major is request to be 1
+        return True
+    return version[0] >= int(major) and version[1] >= int(minor)
+    
+
+
+def ensure_pandoc_maximal_version(major, minor=9999):
+    """Check if the used pandoc fulfill a maximal version requirement.
+
+    :param bool major: pandoc major version, such as 1 or 2.
+
+    :param bool minor: pandoc minor version, such as 10 or 11.
+
+    :returns: True if the installed pandoc is below the maximal version, False otherwise.
+    :rtype: bool
+    """
+    version = [int(x) for x in get_pandoc_version().split(".")]
+    if version[0] < int(major): # if we have pandoc1 but major is request to be 2
+        return True
+    return version[0] <= int(major) and version[1] <= int(minor)
+    
 def _ensure_pandoc_path(quiet=False):
     global __pandoc_path
 
