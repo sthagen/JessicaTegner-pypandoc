@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pypandoc"
-version = "1.8.dev0"
+version = "1.8"
 description = "Thin wrapper for pandoc"
 authors = ["NicklasTegner <NicklasMCHD@live.dk>"]
 license = "MIT"
@@ -28,14 +28,6 @@ classifiers = [
 
 packages = [
     { include = "pypandoc" },
-]
-
-include = [
-"examples/*",
-"LICENSE",
-"README.md",
-"tests.py",
-"filter_test.md",
 ]
 
 [tool.poetry.dependencies]
