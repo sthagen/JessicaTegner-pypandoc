@@ -11,6 +11,7 @@ import sys
 import tempfile
 from typing import Union
 
+import urllib
 try:
     from urllib.request import urlopen
 except ImportError:
@@ -45,8 +46,16 @@ def _get_pandoc_urls(version="latest"):
     # url to pandoc download page
     url = "https://github.com/jgm/pandoc/releases/" + \
           ("tag/" if version != "latest" else "") + version
+    # try to open the url
+    try:
+        response = urlopen(url)
+        version_url_frags = response.url.split("/")
+        version = version_url_frags[-1]
+    except urllib.error.HTTPError as e:
+        raise RuntimeError("Invalid pandoc version {}.".format(version))
+        return
     # read the HTML content
-    response = urlopen(url)
+    response = urlopen("https://github.com/jgm/pandoc/releases/expanded_assets/"+version)
     content = response.read()
     # regex for the binaries
     processor_architecture = "arm" if platform.uname()[4].startswith("arm") else "amd"
