@@ -4,7 +4,6 @@ from typing import Iterable
 from typing import Union
 from typing import Generator
 
-import logging
 import os
 import re
 import subprocess
@@ -14,12 +13,13 @@ import textwrap
 import glob
 from pathlib import Path
 
-from .handler import _check_log_handler
+from .handler import logger, _check_log_handler
 from .pandoc_download import DEFAULT_TARGET_FOLDER, download_pandoc
 from .py3compat import cast_bytes, cast_unicode, string_types, url2path, urlparse
 
 __author__ = u'Juho Vepsäläinen'
 __author_email__ = "bebraw@gmail.com"
+__maintainer__ = u'Jessica Tegner'
 __url__ = 'https://github.com/JessicaTegner/pypandoc'
 __version__ = '1.10'
 __license__ = 'MIT'
@@ -42,6 +42,7 @@ __classifiers__ = [
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3.10',
+        'Programming Language :: Python :: 3.11',
         'Programming Language :: Python :: Implementation :: CPython',
         'Programming Language :: Python :: Implementation :: PyPy'
     ]
@@ -50,12 +51,9 @@ __all__ = ['convert_file', 'convert_text',
            'get_pandoc_formats', 'get_pandoc_version', 'get_pandoc_path',
            'download_pandoc']
 
-# Set up the module level logger
-logger = logging.getLogger(__name__)
-
 def convert_text(source:str, to:str, format:str, extra_args:Iterable=(), encoding:str='utf-8',
                  outputfile:Union[None, str, Path]=None, filters:Union[Iterable, None]=None, verify_format:bool=True,
-                 sandbox:bool=True, cworkdir:Union[str, None]=None) -> str:
+                 sandbox:bool=False, cworkdir:Union[str, None]=None) -> str:
     """Converts given `source` from `format` to `to`.
 
     :param str source: Unicode string or bytes (see encoding)
@@ -80,7 +78,7 @@ def convert_text(source:str, to:str, format:str, extra_args:Iterable=(), encodin
             (Default value = True)
 
     :param bool sandbox: Run pandoc in pandocs own sandbox mode, limiting IO operations in readers and writers to reading the files specified on the command line. Anyone using pandoc on untrusted user input should use this option. Note: This only does something, on pandoc >= 2.15
-            (Default value = True)
+            (Default value = False)
 
     :returns: converted string (unicode) or an empty string if an outputfile was given
     :rtype: unicode
@@ -98,7 +96,7 @@ def convert_text(source:str, to:str, format:str, extra_args:Iterable=(), encodin
 
 def convert_file(source_file:Union[list, str, Path, Generator], to:str, format:Union[str, None]=None,
                  extra_args:Iterable=(), encoding:str='utf-8', outputfile:Union[None, str, Path]=None,
-                 filters:Union[Iterable, None]=None, verify_format:bool=True, sandbox:bool=True,
+                 filters:Union[Iterable, None]=None, verify_format:bool=True, sandbox:bool=False,
                  cworkdir:Union[str, None]=None) -> str:
     """Converts given `source` from `format` to `to`.
 
@@ -130,7 +128,7 @@ def convert_file(source_file:Union[list, str, Path, Generator], to:str, format:U
             (Default value = True)
 
     :param bool sandbox: Run pandoc in pandocs own sandbox mode, limiting IO operations in readers and writers to reading the files specified on the command line. Anyone using pandoc on untrusted user input should use this option. Note: This only does something, on pandoc >= 2.15
-            (Default value = True)
+            (Default value = False)
 
     :returns: converted string (unicode) or an empty string if an outputfile was given
     :rtype: unicode
@@ -318,17 +316,21 @@ def _validate_formats(format, to, outputfile):
 
 def _convert_input(source, format, input_type, to, extra_args=(),
                    outputfile=None, filters=None, verify_format=True,
-                   sandbox=True, cworkdir=None):
+                   sandbox=False, cworkdir=None):
     
     _check_log_handler()
+
+    logger.debug("Ensuring pandoc path...")
     _ensure_pandoc_path()
 
     if verify_format:
+        logger.debug("Verifying format...")
         format, to = _validate_formats(format, to, outputfile)
     else:
         format = normalize_format(format)
         to = normalize_format(to)
 
+    logger.debug("Identifying input type...")
     string_input = input_type == 'string'
     if not string_input:
         if isinstance(source, str):
@@ -350,7 +352,10 @@ def _convert_input(source, format, input_type, to, extra_args=(),
 
     if sandbox:
         if ensure_pandoc_minimal_version(2,15): # sandbox was introduced in pandoc 2.15, so only add if we are using 2.15 or above.
+            logger.debug("Adding sandbox argument...")
             args.append("--sandbox")
+        else:
+            logger.warning("Sandbox argument was used, but pandoc version is too low. Ignoring argument.")
 
     args.extend(extra_args)
 
@@ -372,6 +377,7 @@ def _convert_input(source, format, input_type, to, extra_args=(),
     if cworkdir and old_wd != cworkdir:
         os.chdir(cworkdir)
 
+    logger.debug("Running pandoc...")
     p = subprocess.Popen(
         args,
         stdin=subprocess.PIPE if string_input else None,
@@ -701,7 +707,7 @@ def _ensure_pandoc_path() -> None:
                     # path exist but is not useable -> not executable?
                     log_msg = ("Found {}, but not using it because of an "
                                "error:".format(path))
-                    logging.exception(log_msg)
+                    logger.exception(log_msg)
                 continue
             version = [int(x) for x in version_string.split(".")]
             while len(version) < len(curr_version):
