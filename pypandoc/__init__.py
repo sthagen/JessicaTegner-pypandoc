@@ -138,20 +138,15 @@ def convert_file(source_file:Union[list, str, Path, Generator], to:str, format:U
     :raises OSError: if pandoc is not found; make sure it has been installed and is available at
             path.
     """
+    # check if we have a working directory
+    # if we don't, we use the current working directory
+    if cworkdir is None:
+        cworkdir = os.getcwd()
+
     # TODO: remove 'encoding' parameter and warning
     if encoding != "utf-8":
         logger.warning("The 'encoding' parameter will be removed in version 1.13. Just remove the parameter, because currently the method does not use it.")
 
-    # This if block effectively adds support for pathlib.Path objects
-    # and generators produced by pathlib.Path().glob().
-    if not isinstance(source_file, str):
-        try:
-            source_file = list(map(str, source_file))
-        except TypeError:
-            source_file = str(source_file)
-
-    if not _identify_path(source_file):
-        raise RuntimeError("source_file is not a valid path")
     if _is_network_path(source_file): # if the source_file is an url
         format = _identify_format_from_path(source_file, format)
         return _convert_input(source_file, format, 'path', to, extra_args=extra_args,
@@ -159,13 +154,45 @@ def convert_file(source_file:Union[list, str, Path, Generator], to:str, format:U
                           verify_format=verify_format, sandbox=sandbox,
                           cworkdir=cworkdir)
 
-    discovered_source_files = []
+    # convert the source file to a path object internally
     if isinstance(source_file, str):
-        discovered_source_files += glob.glob(source_file)
-    if isinstance(source_file, list): # a list of possibly file or file patterns. Expand all with glob
-        for filepath in source_file:
-            discovered_source_files.extend(glob.glob(filepath))
+        source_file = Path(source_file)
+    elif isinstance(source_file, list):
+        source_file = [Path(x) for x in source_file]
+    elif isinstance(source_file, Generator):
+        source_file = [Path(x) for x in source_file]
 
+
+    # we are basically interested to figure out if its an absolute path or not
+    # if it's not, we want to prefix the working directory
+    # if it's a list, we want to prefix the working directory to each item if it's not an absolute path
+    # if it is, just use the absolute path
+    if isinstance(source_file, list):
+        source_file = [x if x.is_absolute() else Path(cworkdir, x) for x in source_file]
+    elif isinstance(source_file, Generator):
+        source_file = (x if x.is_absolute() else Path(cworkdir, x) for x in source_file)
+    # check ifjust a single path was given
+    elif isinstance(source_file, Path):
+        source_file = source_file if source_file.is_absolute() else Path(cworkdir, source_file)
+
+
+    discovered_source_files = []
+    # if we have a list of files, we need to glob them
+    # if we have a single file, we need to glob it
+    # remember that we already converted the source_file to a path object
+    # so for glob.glob use both the dir and file name
+    if isinstance(source_file, list):
+        for single_source in source_file:
+            discovered_source_files.extend(glob.glob(str(single_source)))
+        if discovered_source_files == []:
+            discovered_source_files = source_file
+    else:
+        discovered_source_files.extend(glob.glob(str(source_file)))
+        if discovered_source_files == []:
+            discovered_source_files = [source_file]
+
+    if not _identify_path(discovered_source_files):
+        raise RuntimeError("source_file is not a valid path")
     format = _identify_format_from_path(discovered_source_files[0], format)
     if len(discovered_source_files) == 1:
         discovered_source_files = discovered_source_files[0]
@@ -679,7 +706,10 @@ def _ensure_pandoc_path() -> None:
         search_paths = ["pandoc", included_pandoc]
         pf = "linux" if sys.platform.startswith("linux") else sys.platform
         try:
-            search_paths.append(os.path.join(DEFAULT_TARGET_FOLDER[pf], "pandoc"))
+            if pf == "win32":
+                search_paths.append(os.path.join(DEFAULT_TARGET_FOLDER[pf], "pandoc.exe"))
+            else:
+                search_paths.append(os.path.join(DEFAULT_TARGET_FOLDER[pf], "pandoc"))
         except:  # noqa
             # not one of the know platforms...
             pass
@@ -689,16 +719,19 @@ def _ensure_pandoc_path() -> None:
         # Also add the interpreter script path, as that's where pandoc could be
         # installed if it's an environment and the environment wasn't activated
         if pf == "win32":
-            search_paths.append(os.path.join(sys.exec_prefix, "Scripts", "pandoc"))
+            search_paths.append(os.path.join(sys.exec_prefix, "Scripts", "pandoc.exe"))
 
             # Since this only runs on Windows, use Windows slashes
             if os.getenv('ProgramFiles', None):
-                search_paths.append(os.path.expandvars("${ProgramFiles}\\Pandoc\\Pandoc"))
+                search_paths.append(os.path.expandvars("${ProgramFiles}\\Pandoc\\pandoc.exe"))
+                search_paths.append(os.path.expandvars("${ProgramFiles}\\Pandoc\\Pandoc.exe"))
             if os.getenv('ProgramFiles(x86)', None):
-                search_paths.append(os.path.expandvars("${ProgramFiles(x86)}\\Pandoc\\Pandoc"))
+                search_paths.append(os.path.expandvars("${ProgramFiles(x86)}\\Pandoc\\pandoc.exe"))
+                search_paths.append(os.path.expandvars("${ProgramFiles(x86)}\\Pandoc\\Pandoc.exe"))
 
         # bin can also be used on windows (conda at least has it in path), so
         # include it unconditionally
+        search_paths.append(os.path.join(sys.exec_prefix, "bin", "pandoc.exe"))
         search_paths.append(os.path.join(sys.exec_prefix, "bin", "pandoc"))
         # If a user added the complete path to pandoc to an env, use that as the
         # only way to get pandoc so that a user can overwrite even a higher
