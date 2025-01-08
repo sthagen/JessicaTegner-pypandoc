@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import, print_function, with_statement
 from typing import Iterable
+from typing import Iterator
 from typing import Union
-from typing import Generator
 
 import os
 import re
@@ -21,7 +21,7 @@ __author__ = u'Juho Vepsäläinen'
 __author_email__ = "bebraw@gmail.com"
 __maintainer__ = u'Jessica Tegner'
 __url__ = 'https://github.com/JessicaTegner/pypandoc'
-__version__ = '1.14'
+__version__ = '1.15'
 __license__ = 'MIT'
 __description__ = "Thin wrapper for pandoc."
 __python_requires__ = ">=3.7"
@@ -97,7 +97,7 @@ def convert_text(source:str, to:str, format:str, extra_args:Iterable=(), encodin
                           cworkdir=cworkdir)
 
 
-def convert_file(source_file:Union[list, str, Path, Generator], to:str, format:Union[str, None]=None,
+def convert_file(source_file:Union[list, str, Path, Iterator], to:str, format:Union[str, None]=None,
                  extra_args:Iterable=(), encoding:str='utf-8', outputfile:Union[None, str, Path]=None,
                  filters:Union[Iterable, None]=None, verify_format:bool=True, sandbox:bool=False,
                  cworkdir:Union[str, None]=None, sort_files=True) -> str:
@@ -165,7 +165,7 @@ def convert_file(source_file:Union[list, str, Path, Generator], to:str, format:U
         source_file = Path(source_file)
     elif isinstance(source_file, list):
         source_file = [Path(x) for x in source_file]
-    elif isinstance(source_file, Generator):
+    elif isinstance(source_file, Iterator):
         source_file = [Path(x) for x in source_file]
 
 
@@ -175,7 +175,7 @@ def convert_file(source_file:Union[list, str, Path, Generator], to:str, format:U
     # if it is, just use the absolute path
     if isinstance(source_file, list):
         source_file = [x if x.is_absolute() else Path(cworkdir, x) for x in source_file]
-    elif isinstance(source_file, Generator):
+    elif isinstance(source_file, Iterator):
         source_file = (x if x.is_absolute() else Path(cworkdir, x) for x in source_file)
     # check ifjust a single path was given
     elif isinstance(source_file, Path):
@@ -339,8 +339,7 @@ def _validate_formats(format, to, outputfile):
         )
 
     if base_to_format == "pdf":
-        # pdf formats needs to actually have a to format of latex and a
-        # filename with an ending pf .pdf
+        # pdf formats need a filename with an ending of .pdf
         if isinstance(outputfile, str):
             if outputfile[-4:] != ".pdf":
                 raise RuntimeError(
@@ -351,11 +350,9 @@ def _validate_formats(format, to, outputfile):
                 raise RuntimeError(
                     'PDF output needs an outputfile with ".pdf" as a fileending.'
                 )
-        # to is not allowed to contain pdf, but must point to latex
         # it's also not allowed to contain extensions according to the docs
         if to != base_to_format:
             raise RuntimeError("PDF output can't contain any extensions: %s" % to)
-        to = "latex"
 
     return format, to
 
