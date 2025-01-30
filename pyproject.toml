@@ -17,7 +17,6 @@ classifiers = [
         'Topic :: Text Processing',
         'Topic :: Text Processing :: Filters',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',
@@ -34,10 +33,6 @@ packages = [
 
 [tool.poetry.dependencies]
 python = ">=3.7"
-
-[tool.poetry.dev-dependencies]
-pandocfilters = "^1.5"
-setuptools = "68"
 
 [tool.poetry.group.dev.dependencies]
 pandocfilters = "^1.5"
