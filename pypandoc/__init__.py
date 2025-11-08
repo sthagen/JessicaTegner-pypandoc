@@ -14,11 +14,11 @@ from typing import Iterable, Iterator, Union
 from .handler import _check_log_handler, logger
 from .pandoc_download import DEFAULT_TARGET_FOLDER, download_pandoc
 
-__author__ = "Juho Vepsäläinen"
-__author_email__ = "bebraw@gmail.com"
+__author__ = "Juho Vepsäläinen; Maintained by Jessica Tegner"
+__author_email__ = "jessica@jessicategner.com"
 __maintainer__ = "Jessica Tegner"
 __url__ = "https://github.com/JessicaTegner/pypandoc"
-__version__ = "1.15"
+__version__ = "1.16"
 __license__ = "MIT"
 __description__ = "Thin wrapper for pandoc."
 __python_requires__ = ">=3.7"
